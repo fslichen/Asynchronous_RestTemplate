@@ -8,7 +8,7 @@ import evolution.pojo.ResponsePojo;
 public class AsynchronousRestTemplateTest {
 	@Test
 	public void test() throws InterruptedException {
-		AsynchronousRestTemplate art = new AsynchronousRestTemplate();
+		AsynchronousRestTemplate art = new AsynchronousRestTemplate(10000);
 		for (int i = 0; i < 10; i++) {
 			RequestPojo request = new RequestPojo();
 			request.setName("Chen");
