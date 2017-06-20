@@ -16,4 +16,12 @@ public class AnyController {
 		responsePojo.setMessage(request.getName());
 		return responsePojo;
 	}
+	
+	@PostMapping("/slow/post")
+	public ResponsePojo slowPost(@RequestBody RequestPojo request) throws InterruptedException {
+		Thread.sleep(Integer.MAX_VALUE);
+		ResponsePojo responsePojo = new ResponsePojo();
+		responsePojo.setMessage(request.getName());
+		return responsePojo;
+	}
 }

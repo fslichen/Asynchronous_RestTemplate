@@ -5,65 +5,68 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.client.RestTemplate;
 
 @SuppressWarnings("rawtypes")
 public class AsynchronousRestTemplate {
-	private List<Task> tasks;
-	private CountDownLatch latch;
+	private List<Callable<Response>> tasks;
+	private Map<String, Response> responses;
 	private RestTemplate restTemplate;
-	private Map<String, Future> futures;
 	private ExecutorService executorService;
+	private Integer individualTaskTimeoutInSeconds;
 	
-	public AsynchronousRestTemplate() {
+	Logger logger = LoggerFactory.getLogger(AsynchronousRestTemplate.class);
+
+	public AsynchronousRestTemplate(int individualTaskTimeoutInSeconds) {
 		tasks = new LinkedList<>();
-		futures = new HashMap<>();
-		executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		responses = new HashMap<>();
 		restTemplate = new RestTemplate();
-	}
-	
-	public AsynchronousRestTemplate(int timeoutInSeconds) {
-		this();
-		HttpComponentsClientHttpRequestFactory httpRequestFactory = new HttpComponentsClientHttpRequestFactory();
-        httpRequestFactory.setConnectTimeout(timeoutInSeconds);
-        restTemplate.setRequestFactory(httpRequestFactory);
-	}
-	
-	public void addTask(String id, String url, Object request, Class response) {
-		tasks.add(new Task(id, url, request, response));
+		this.individualTaskTimeoutInSeconds = individualTaskTimeoutInSeconds;
+		executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 	}
 	
 	@SuppressWarnings("unchecked")
-	public void post() throws InterruptedException {
-		latch = new CountDownLatch(tasks.size());
-		for (Task task : tasks) {
-			Future future = executorService.submit(new Callable() {
-				@Override
-				public Object call() throws Exception {
-					Object response = restTemplate.postForObject(task.getUrl(), task.getRequest(), task.getResponseType());
-					latch.countDown();
-					return response;
+	public void addTask(String id, String url, Object request, Class responseType) {
+		Callable<Response> task = new Callable<Response>() {
+			@Override
+			public Response call() {
+				Response response = new Response();
+				response.setId(id);
+				ExecutorService executorService = Executors.newSingleThreadExecutor(); 
+				Future future = executorService.submit(new Callable() {
+					@Override
+					public Object call() throws Exception {
+						return restTemplate.postForObject(url, request, responseType);
+					}
+				});
+				try {
+					response.setData(future.get(individualTaskTimeoutInSeconds, TimeUnit.SECONDS));
+				} catch (Exception e) {
+					logger.error("Execution of task " + id + " has exceeded the time out limit " + individualTaskTimeoutInSeconds + " second(s).");
 				}
-			});
-			futures.put(task.getId(), future);
+				return response;
+			}
+		};
+		tasks.add(task);
+	}
+	
+	public void post() throws Exception {
+		List<Future<Response>> futures = executorService.invokeAll(tasks);
+		for (Future<Response> future : futures) {
+			Response response = future.get();
+			responses.put(response.getId(), response);
 		}
-		latch.await();
 	}
 	
 	@SuppressWarnings("unchecked")
 	public <T> T get(String id) {
-		try {
-			return (T) futures.get(id).get();
-		} catch (InterruptedException | ExecutionException e) {
-			e.printStackTrace();
-			return null;
-		}
+		return (T) responses.get(id).getData();
 	}
 }
