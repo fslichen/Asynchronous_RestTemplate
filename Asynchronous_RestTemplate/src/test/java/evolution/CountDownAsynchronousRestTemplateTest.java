@@ -2,6 +2,7 @@ package evolution;
 
 import org.junit.Test;
 
+import evolution.asynchronous.rest.template.count.down.CountDownAsynchronousRestTemplate;
 import evolution.pojo.RequestPojo;
 import evolution.pojo.ResponsePojo;
 

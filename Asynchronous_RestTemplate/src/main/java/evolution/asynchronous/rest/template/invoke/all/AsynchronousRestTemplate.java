@@ -1,4 +1,4 @@
-package evolution;
+package evolution.asynchronous.rest.template.invoke.all;
 
 import java.util.HashMap;
 import java.util.LinkedList;

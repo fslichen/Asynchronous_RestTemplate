@@ -1,4 +1,4 @@
-package evolution;
+package evolution.asynchronous.rest.template.invoke.all;
 
 public class Response {
 	private String id;
